@@ -1,78 +1,204 @@
-{% extends "shop/base.html" %}
-{% block title %}Catalog{% endblock %}
-{% block content %}
-<form method="get" class="row" style="gap: 1rem; align-items: flex-start;">
-    <div>
-        <label for="q">Search</label><br>
-        <input type="text" id="q" name="q" value="{{ q }}" placeholder="e.g. waterproof, cotton" />
-    </div>
+<!doctype html>
+<html lang="en">
 
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Catalog</title>
+    <style>
+        :root {
+            --gap: 1rem;
+            --muted: #6b7280;
+            --border: #e5e7eb;
+            --radius: 8px;
+            --maxw: 960px;
+        }
 
-    <div>
-        <label for="category">Category</label><br>
-        <select id="category" name="category">
-            <option value="">All categories</option>
-            {% for c in categories %}
-            <option value="{{ c.slug }}" {% if selected_category == c.slug %}selected{% endif %}>{{ c.name }}</option>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+            line-height: 1.5;
+            margin: 2rem;
+        }
+
+        header,
+        main,
+        form,
+        .container {
+            max-width: var(--maxw);
+            margin: 0 auto;
+        }
+
+        header h1 {
+            margin: 0 0 .25rem 0;
+        }
+
+        .muted {
+            color: var(--muted);
+            font-size: 0.925rem;
+        }
+
+        /* Form */
+        .filter {
+            display: flex;
+            gap: var(--gap);
+            align-items: flex-start;
+            flex-wrap: wrap;
+            margin-top: var(--gap);
+        }
+
+        .field {
+            display: grid;
+            gap: .375rem;
+            min-width: 240px;
+        }
+
+        .field label {
+            font-weight: 600;
+        }
+
+        .controls {
+            display: flex;
+            gap: .5rem;
+            align-items: center;
+        }
+
+        select[multiple] {
+            min-width: 240px;
+            min-height: 120px;
+        }
+
+        /* Grid */
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: var(--gap);
+            margin-top: var(--gap);
+        }
+
+        .card {
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1rem;
+        }
+
+        .card h3 {
+            margin: 0 0 .25rem 0;
+        }
+
+        /* Pagination */
+        .pagination {
+            display: flex;
+            gap: var(--gap);
+            justify-content: center;
+            align-items: center;
+            margin-top: var(--gap);
+        }
+
+        .pagination a {
+            text-decoration: none;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>Product Catalog</h1>
+        <p class="muted">Search by description or name; filter by category and one or more tags.</p>
+        <hr />
+    </header>
+
+    <main>
+        <!-- Filters -->
+        <form method="get" class="filter" aria-label="Product filters">
+            <div class="field">
+                <label for="q">Search</label>
+                <input type="search" id="q" name="q" value="{{ q }}" placeholder="e.g. waterproof, cotton"
+                    autocomplete="off" />
+            </div>
+
+            <div class="field">
+                <label for="category">Category</label>
+                <select id="category" name="category">
+                    <option value="">All categories</option>
+                    {% for c in categories %}
+                    <option value="{{ c.id }}" {% if selected_category == c.id|stringformat:'s' %}selected{% endif %}>
+                        {{ c.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="field">
+                <label for="tags">Tags</label>
+                <select id="tags" name="tags" multiple>
+                    {% for t in tags %}
+                    <option value="{{ t.id }}" {% if t.id|stringformat:'s' in selected_tags %}selected{% endif %}>
+                        {{ t.name }}</option>
+                    {% endfor %}
+                </select>
+                <span class="muted">Hold Ctrl/Cmd to select multiple.</span>
+            </div>
+
+            <div class="field">
+                <label>&nbsp;</label>
+                <div class="controls">
+                    <button type="submit">Apply</button>
+                    <a href="/">Reset</a>
+                </div>
+            </div>
+        </form>
+
+        <p class="muted" aria-live="polite">Found {{ page_obj.paginator.count }} product(s).</p>
+
+        <section class="grid" aria-label="Products">
+            {% for p in products %}
+            <article class="card">
+                <h3>{{ p.name }}</h3>
+                <div class="muted">Category: {{ p.category.name }}</div>
+
+                {% if p.tags.all %}
+                <div class="muted">
+                    Tags:
+                    {% for tg in p.tags.all %}
+                    <span>{{ tg.name }}</span>{% if not forloop.last %}, {% endif %}
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                {% if p.description %}
+                <p>{{ p.description|truncatechars:140 }}</p>
+                {% endif %}
+
+                <div><strong>${{ p.price }}</strong></div>
+            </article>
+            {% empty %}
+            <p>No products match your filters.</p>
             {% endfor %}
-        </select>
-    </div>
+        </section>
 
+        {% if is_paginated %}
+        <nav class="pagination" aria-label="Pagination">
+            {% comment %}
+            Building clean prev/next URLs while retaining filters.
+            We repeat params explicitly for readability (no custom tags).
+            {% endcomment %}
+            {% if page_obj.has_previous %}
+            <a rel="prev"
+                href="?{% if q %}q={{ q|urlencode }}&{% endif %}{% if selected_category %}category={{ selected_category }}&{% endif %}{% for t in selected_tags %}tags={{ t }}&{% endfor %}page={{ page_obj.previous_page_number }}">Prev</a>
+            {% endif %}
 
-    <div>
-        <label for="tags">Tags (multi-select)</label><br>
-        <select id="tags" name="tags" multiple>
-            {% for t in tags %}
-            <option value="{{ t.slug }}" {% if t.slug in selected_tags %}selected{% endif %}>{{ t.name }}</option>
-            {% endfor %}
-        </select>
-    </div>
+            <span class="muted">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
 
-
-    <div>
-        <button type="submit">Apply</button>
-        <a href="/">Reset</a>
-    </div>
-</form>
-
-
-<p class="muted" style="margin-top: 1rem;">Found {{ page_obj.paginator.count }} product(s).</p>
-
-
-<section class="grid">
-    {% for p in products %}
-    <article class="card">
-        <h3 style="margin: 0 0 .25rem 0;">{{ p.name }}</h3>
-        <div class="muted">Category: {{ p.category.name }}</div>
-        {% if p.tags.all %}
-        <div class="muted">Tags:
-            {% for tg in p.tags.all %}
-            <span>{{ tg.name }}</span>{% if not forloop.last %}, {% endif %}
-            {% endfor %}
-        </div>
+            {% if page_obj.has_next %}
+            <a rel="prev"
+                href="?{% if q %}q={{ q|urlencode }}&{% endif %}{% if selected_category %}category={{ selected_category }}&{% endif %}{% for t in selected_tags %}tags={{ t }}&{% endfor %}page={{ page_obj.next_page_number }}">Next</a>
+            {% endif %}
+        </nav>
         {% endif %}
-        {% if p.description %}
-        <p>{{ p.description|truncatechars:140 }}</p>
-        {% endif %}
-        <div><strong>${{ p.price }}</strong></div>
-    </article>
-    {% empty %}
-    <p>No products match your filters.</p>
-    {% endfor %}
-</section>
+    </main>
+</body>
 
-
-{% if is_paginated %}
-<nav class="row" style="justify-content: center; margin-top: 1rem;">
-    {% if page_obj.has_previous %}
-    <a
-        href="?{% if q %}q={{ q|urlencode }}&{% endif %}{% if selected_category %}category={{ selected_category }}&{% endif %}{% for t in selected_tags %}tags={{ t }}&{% endfor %}page={{ page_obj.previous_page_number }}">Prev</a>
-    {% endif %}
-    <span class="muted">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
-    {% if page_obj.has_next %}
-    <a
-        href="?{% if q %}q={{ q|urlencode }}&{% endif %}{% if selected_category %}category={{ selected_category }}&{% endif %}{% for t in selected_tags %}tags={{ t }}&{% endfor %}page={{ page_obj.next_page_number }}">Next</a>
-    {% endif %}
-</nav>
-{% endif %}
-{% endblock %}
+</html>
